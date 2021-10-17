@@ -4,29 +4,35 @@ use std::fmt::{Display, Formatter};
 use std::os::raw::c_char;
 use std::path::Path;
 
+/// Statically known path to library.
 #[cfg(target_os = "linux")]
 pub fn lib_path() -> &'static Path {
     Path::new("target/release/image_sl.so")
 }
 
+/// Statically known path to library.
 #[cfg(target_os = "windows")]
 pub fn lib_path() -> &'static Path {
     Path::new("target/release/image_sl.dll")
 }
 
+/// Incapsulate raw pointer to image.
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct ImageHandle(*const c_void);
 
 impl ImageHandle {
+    /// Creates new null pointer.
     pub unsafe fn new_null() -> Self {
         Self(std::ptr::null())
     }
 }
 
+/// Contain pointer to null-terminated UTF-8 path.
 #[repr(transparent)]
 pub struct RawPath(pub *const c_char);
 
+/// Error codes for image oprerations.
 #[repr(C)]
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -52,6 +58,7 @@ impl Display for ImageError {
     }
 }
 
+/// Required for converting `ImageError` to `anyhow::Error`.
 impl Error for ImageError {}
 
 /// Load functions block
@@ -69,6 +76,9 @@ pub type BlurImageFn = unsafe extern "C" fn(ImageHandle, f32) -> ImageHandle;
 /// Flips image horizontally
 pub type MirrorImageFn = unsafe extern "C" fn(ImageHandle);
 
+/// Contains functions provided by library. Allow to import just `functions()` function and get all
+/// functionality of library through this struct.
+/// `size` field contain size of this struct. It helps to avoid versioning and some other errors.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Functions {

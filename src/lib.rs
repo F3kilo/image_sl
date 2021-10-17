@@ -4,6 +4,7 @@ use std::ffi::{c_void, CStr};
 use std::os::raw::c_char;
 use std::path::Path;
 
+/// Incapsulate raw pointer to image.
 #[repr(transparent)]
 struct ImageHandle(*mut c_void);
 
