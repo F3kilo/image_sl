@@ -22,8 +22,6 @@ impl ImageHandle {
         Box::from_raw(ptr)
     }
 
-    /// # Safety
-    /// `self.0` != null.
     pub fn from_image(image: DynamicImage) -> Self {
         let reference = Box::leak(Box::new(image));
         let ptr = reference as *mut DynamicImage;
@@ -31,9 +29,11 @@ impl ImageHandle {
     }
 }
 
+/// Contain pointer to null-terminated UTF-8 path.
 #[repr(transparent)]
 struct RawPath(*const c_char);
 
+/// Error codes for image oprerations.
 #[repr(C)]
 #[derive(Debug)]
 enum ImageError {
@@ -58,18 +58,21 @@ impl From<image::ImageError> for ImageError {
     }
 }
 
-/// Loads image from file
+/// Loads image from file function type.
 type OpenImageFn = unsafe extern "C" fn(RawPath, *mut ImageHandle) -> ImageError;
-/// Saves image to file
+/// Saves image to file function type.
 type SaveImageFn = unsafe extern "C" fn(RawPath, ImageHandle) -> ImageError;
-/// Destroys image
+/// Destroys image function type.
 type DestroyImageFn = unsafe extern "C" fn(ImageHandle);
 
-/// Performs a Gaussian blur on the supplied image.
+/// Performs a Gaussian blur on the supplied image function type.
 type BlurImageFn = unsafe extern "C" fn(ImageHandle, f32) -> ImageHandle;
-/// Flips image horizontally
+/// Flips image horizontally function type.
 type MirrorImageFn = unsafe extern "C" fn(ImageHandle);
 
+/// Contains functions provided by library. Allow to import just `functions()` function and get all
+/// functionality of library through this struct.
+/// `size` field contain size of this struct. It helps to avoid versioning and some other errors.
 #[allow(unused)]
 #[repr(C)]
 pub struct FunctionsBlock {
@@ -94,6 +97,7 @@ impl Default for FunctionsBlock {
     }
 }
 
+/// Returns all functions of this library.
 #[no_mangle]
 pub extern "C" fn functions() -> FunctionsBlock {
     FunctionsBlock::default()
@@ -102,8 +106,8 @@ pub extern "C" fn functions() -> FunctionsBlock {
 // Exported functions
 
 /// # Safety
-/// `path` is valid, null-terminated, UTF-8 string
-/// `handle` is valid pointer to void*
+/// - `path` is valid pointer to null-terminated UTF-8 string.
+/// - `handle` is valid pointer to `void*`.
 unsafe extern "C" fn img_open(path: RawPath, handle: *mut ImageHandle) -> ImageError {
     if handle.is_null() || path.0.is_null() {
         return ImageError::Parameter;
@@ -124,8 +128,8 @@ unsafe extern "C" fn img_open(path: RawPath, handle: *mut ImageHandle) -> ImageE
 }
 
 /// # Safety
-/// `path` is valid, null-terminated, UTF-8 string
-/// `handle` is valid image handle obtained from `img_open()` function
+/// - `path` is valid pointer to null-terminated UTF-8 string.
+/// - `handle` is valid image handle.
 unsafe extern "C" fn img_save(path: RawPath, handle: ImageHandle) -> ImageError {
     if handle.0.is_null() || path.0.is_null() {
         return ImageError::Parameter;
@@ -143,10 +147,12 @@ unsafe extern "C" fn img_save(path: RawPath, handle: ImageHandle) -> ImageError 
     }
 }
 
+/// Destroys image created by this library.
 unsafe extern "C" fn img_destroy(handle: ImageHandle) {
     handle.into_image();
 }
 
+/// Blurs image with `sigma` blur radius. Returns new image.
 unsafe extern "C" fn img_blur(handle: ImageHandle, sigma: f32) -> ImageHandle {
     let image = handle.as_image();
     let buffer = image::imageops::blur(image, sigma);
@@ -154,6 +160,7 @@ unsafe extern "C" fn img_blur(handle: ImageHandle, sigma: f32) -> ImageHandle {
     ImageHandle::from_image(blurred)
 }
 
+/// Flip image horizontally in place.
 unsafe extern "C" fn img_mirror(handle: ImageHandle) {
     let image_ref = handle.as_image();
     image::imageops::flip_horizontal_in_place(image_ref);
