@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::ffi::{c_void, CStr, CString};
+use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::os::raw::c_char;
 use std::path::Path;
@@ -29,6 +29,7 @@ pub struct RawPath(pub *const c_char);
 
 #[repr(C)]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ImageError {
     NoError = 0,
     Io,
