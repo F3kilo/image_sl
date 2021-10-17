@@ -5,7 +5,7 @@ use std::os::raw::c_char;
 use std::path::Path;
 
 #[repr(transparent)]
-struct ImageHandle(*const c_void);
+struct ImageHandle(*mut c_void);
 
 impl ImageHandle {
     /// # Panics
@@ -20,6 +20,14 @@ impl ImageHandle {
     pub unsafe fn into_image(self) -> Box<DynamicImage> {
         let ptr = self.0 as *mut DynamicImage;
         Box::from_raw(ptr)
+    }
+
+    /// # Safety
+    /// `self.0` != null.
+    pub fn from_image(image: DynamicImage) -> Self {
+        let reference = Box::leak(Box::new(image));
+        let ptr = reference as *mut DynamicImage;
+        Self(ptr as _)
     }
 }
 
@@ -50,16 +58,27 @@ impl From<image::ImageError> for ImageError {
     }
 }
 
+/// Loads image from file
 type OpenImageFn = unsafe extern "C" fn(RawPath, *mut ImageHandle) -> ImageError;
+/// Saves image to file
 type SaveImageFn = unsafe extern "C" fn(RawPath, ImageHandle) -> ImageError;
+/// Destroys image
 type DestroyImageFn = unsafe extern "C" fn(ImageHandle);
 
+/// Performs a Gaussian blur on the supplied image.
+type BlurImageFn = unsafe extern "C" fn(ImageHandle, f32) -> ImageHandle;
+/// Flips image horizontally
+type MirrorImageFn = unsafe extern "C" fn(ImageHandle);
+
 #[allow(unused)]
+#[repr(C)]
 pub struct FunctionsBlock {
     size: usize,
     open_image: OpenImageFn,
     save_image: SaveImageFn,
     destroy_image: DestroyImageFn,
+    blur_image: BlurImageFn,
+    mirror_image: MirrorImageFn,
 }
 
 impl Default for FunctionsBlock {
@@ -69,13 +88,15 @@ impl Default for FunctionsBlock {
             open_image: img_open,
             save_image: img_save,
             destroy_image: img_destroy,
+            blur_image: img_blur,
+            mirror_image: img_mirror,
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn functions() -> *const FunctionsBlock {
-    Box::leak(Box::new(FunctionsBlock::default()))
+pub extern "C" fn functions() -> FunctionsBlock {
+    FunctionsBlock::default()
 }
 
 // Exported functions
@@ -98,9 +119,7 @@ unsafe extern "C" fn img_open(path: RawPath, handle: *mut ImageHandle) -> ImageE
         Err(e) => return e.into(),
     };
 
-    let leaked_handle = Box::leak(Box::new(img));
-    let ptr = leaked_handle as *mut DynamicImage;
-    *handle = ImageHandle(ptr as _);
+    *handle = ImageHandle::from_image(img);
     ImageError::NoError
 }
 
@@ -126,6 +145,18 @@ unsafe extern "C" fn img_save(path: RawPath, handle: ImageHandle) -> ImageError 
 
 unsafe extern "C" fn img_destroy(handle: ImageHandle) {
     handle.into_image();
+}
+
+unsafe extern "C" fn img_blur(handle: ImageHandle, sigma: f32) -> ImageHandle {
+    let image = handle.as_image();
+    let buffer = image::imageops::blur(image, sigma);
+    let blurred = image::DynamicImage::ImageRgba8(buffer);
+    ImageHandle::from_image(blurred)
+}
+
+unsafe extern "C" fn img_mirror(handle: ImageHandle) {
+    let image_ref = handle.as_image();
+    image::imageops::flip_horizontal_in_place(image_ref);
 }
 
 // Utils
