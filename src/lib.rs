@@ -35,8 +35,7 @@ impl ImageHandle {
 struct RawPath(*const c_char);
 
 /// Error codes for image oprerations.
-#[repr(C)]
-#[derive(Debug)]
+#[repr(u32)]
 enum ImageError {
     NoError = 0,
     Io,
