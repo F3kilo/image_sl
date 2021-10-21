@@ -7,7 +7,7 @@ use std::path::Path;
 /// Statically known path to library.
 #[cfg(target_os = "linux")]
 pub fn lib_path() -> &'static Path {
-    Path::new("target/release/image_sl.so")
+    Path::new("target/release/libimage_sl.so")
 }
 
 /// Statically known path to library.
